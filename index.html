@@ -1,0 +1,494 @@
+from pathlib import Path
+
+html = r'''<!DOCTYPE html>
+<html lang="sv" class="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ALDLdroid & TunerPro AI Log Analyzer</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+tailwind.config={darkMode:'class',theme:{extend:{colors:{
+brand:{400:'#4ade80',500:'#22c55e',600:'#16a34a'},darkbg:'#0b0f17',
+cardbg:'#111827',cardborder:'#1f293d',accentred:'#ef4444',
+accentamber:'#f59e0b',accentcyan:'#06b6d4'
+}}}};
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+body{font-family:Inter,sans-serif;background:#0b0f17;color:#f3f4f6}
+::-webkit-scrollbar{width:8px;height:8px}::-webkit-scrollbar-track{background:#0b0f17}
+::-webkit-scrollbar-thumb{background:#1f293d;border-radius:4px}
+.glow-green{box-shadow:0 0 15px rgba(34,197,94,.25)}
+.glow-cyan{box-shadow:0 0 15px rgba(6,182,212,.25)}
+.glow-red{box-shadow:0 0 15px rgba(239,68,68,.25)}
+.drop-active{border-color:#22c55e!important;background:rgba(34,197,94,.08)!important}
+</style>
+</head>
+<body class="min-h-screen flex flex-col antialiased">
+
+<header class="border-b border-cardborder bg-cardbg/90 backdrop-blur-md sticky top-0 z-50">
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
+<div class="flex items-center gap-3 min-w-0">
+<div class="w-10 h-10 shrink-0 rounded-xl bg-gradient-to-tr from-brand-600 to-accentcyan flex items-center justify-center text-black text-xl shadow-lg glow-green"><i class="fa-solid fa-gauge-high"></i></div>
+<div class="min-w-0"><h1 class="font-bold text-lg leading-tight tracking-wide text-white">ALDL<span class="text-brand-400">AI</span> Tuner Studio</h1>
+<p class="text-xs text-gray-400 truncate">ALDLdroid & TunerPro logg- och ADX-analys</p></div>
+</div>
+<div class="flex items-center gap-2">
+<button onclick="runAnalysis()" class="px-4 py-2 text-xs font-bold rounded-lg bg-brand-500 hover:bg-brand-600 text-black shadow-lg transition flex items-center gap-2 glow-green"><i class="fa-solid fa-play"></i><span class="hidden sm:inline">Starta Analys</span></button>
+<button onclick="loadDemoData()" class="px-3 py-2 text-xs font-semibold rounded-lg bg-brand-500/10 hover:bg-brand-500/20 text-brand-400 border border-brand-500/30 transition flex items-center gap-2"><i class="fa-solid fa-flask"></i><span class="hidden md:inline">Demodata</span></button>
+<button onclick="toggleApiModal()" class="px-3 py-2 text-xs font-semibold rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-200 border border-cardborder transition"><i class="fa-solid fa-key text-accentamber"></i><span id="apiLabel" class="hidden sm:inline"> Gemini API</span></button>
+</div>
+</div>
+</header>
+
+<main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 flex-grow w-full space-y-6">
+
+<section class="grid grid-cols-1 md:grid-cols-2 gap-4">
+<div id="dropAdx" class="border-2 border-dashed border-cardborder hover:border-brand-500/50 bg-cardbg/40 rounded-2xl p-5 transition flex flex-col items-center justify-center text-center cursor-pointer relative group">
+<input id="adxFile" type="file" accept=".adx,.xml" class="absolute inset-0 opacity-0 cursor-pointer" onchange="readAdxFile(event)">
+<div class="w-12 h-12 rounded-full bg-brand-500/10 text-brand-400 flex items-center justify-center mb-3"><i class="fa-solid fa-file-code text-xl"></i></div>
+<h3 id="adxName" class="font-semibold text-sm text-gray-200">Välj eller släpp .ADX-fil</h3>
+<p id="adxSub" class="text-xs text-gray-400 mt-1">Definitionsfil från TunerPro (XML)</p>
+<span id="adxBadge" class="mt-3 px-2.5 py-0.5 text-[10px] uppercase font-bold rounded-full bg-gray-800 text-gray-400 border border-gray-700">Ej laddad</span>
+</div>
+<div id="dropLog" class="border-2 border-dashed border-cardborder hover:border-accentcyan/50 bg-cardbg/40 rounded-2xl p-5 transition flex flex-col items-center justify-center text-center cursor-pointer relative group">
+<input id="logFile" type="file" accept=".csv,.txt,.log" class="absolute inset-0 opacity-0 cursor-pointer" onchange="readLogFile(event)">
+<div class="w-12 h-12 rounded-full bg-accentcyan/10 text-accentcyan flex items-center justify-center mb-3"><i class="fa-solid fa-file-csv text-xl"></i></div>
+<h3 id="logName" class="font-semibold text-sm text-gray-200">Välj eller släpp loggfil (.CSV)</h3>
+<p id="logSub" class="text-xs text-gray-400 mt-1">ALDLdroid eller TunerPro RT</p>
+<span id="logBadge" class="mt-3 px-2.5 py-0.5 text-[10px] uppercase font-bold rounded-full bg-gray-800 text-gray-400 border border-gray-700">Ej laddad</span>
+</div>
+</section>
+
+<section class="bg-cardbg border border-cardborder rounded-2xl p-4 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-lg">
+<div class="flex items-center gap-3">
+<div id="statusIcon" class="w-10 h-10 rounded-xl bg-brand-500/10 text-brand-400 flex items-center justify-center text-lg"><i class="fa-solid fa-bolt"></i></div>
+<div><h3 id="analysisTitle" class="font-bold text-sm text-white">Redo för analys</h3><p id="analysisStatus" class="text-xs text-gray-400">Ladda upp en loggfil – analysen startar automatiskt.</p></div>
+</div>
+<button onclick="runAnalysis()" class="w-full sm:w-auto px-6 py-2.5 bg-brand-500 hover:bg-brand-600 text-black font-bold text-xs rounded-xl shadow-lg transition flex items-center justify-center gap-2 glow-green"><i class="fa-solid fa-play"></i> Kör om analys</button>
+</section>
+
+<section class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+<div class="metric"><b>Max varvtal</b><strong id="mRpm">0</strong><small>RPM</small></div>
+<div class="metric"><b>Max TPS</b><strong id="mTps">0</strong><small>%</small></div>
+<div class="metric"><b>Medel BLM</b><strong id="mBlm">—</strong><small>Target 128</small></div>
+<div class="metric"><b>Knackhändelser</b><strong id="mKnock">0</strong><small>st</small></div>
+<div class="metric"><b>Max CTS</b><strong id="mCts">—</strong><small>°C</small></div>
+<div class="metric"><b>Max MAP</b><strong id="mMap">—</strong><small>kPa</small></div>
+</section>
+
+<div class="flex overflow-x-auto border-b border-cardborder gap-2">
+<button class="tab active" onclick="switchTab('charts',this)"><i class="fa-solid fa-chart-line"></i> Grafer</button>
+<button class="tab" onclick="switchTab('grid',this)"><i class="fa-solid fa-table-cells"></i> BLM Grid</button>
+<button class="tab" onclick="switchTab('channels',this)"><i class="fa-solid fa-microchip"></i> ADX Kanaler</button>
+<button class="tab" onclick="switchTab('report',this)"><i class="fa-solid fa-robot"></i> AI Rapport</button>
+</div>
+
+<div id="tab-charts" class="space-y-6">
+<div id="engineNotice" class="hidden rounded-2xl p-4 border"></div>
+<div class="bg-cardbg border border-cardborder rounded-2xl p-4 sm:p-6 shadow-xl">
+<div class="flex flex-col sm:flex-row justify-between mb-4 gap-2"><div><h2 class="font-bold text-base text-white">Telemetrilogg över tid</h2><p id="chartSub" class="text-xs text-gray-400">RPM, TPS, MAP och knackning</p></div></div>
+<div class="relative w-full h-[390px]"><canvas id="mainChart"></canvas></div>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+<div class="bg-cardbg border border-cardborder rounded-2xl p-5"><h3 class="font-bold text-sm mb-3">Loggstatus</h3><div id="logSummary" class="text-xs text-gray-300 space-y-2">Ingen logg analyserad.</div></div>
+<div class="bg-cardbg border border-cardborder rounded-2xl p-5"><h3 class="font-bold text-sm mb-3">DTC / status</h3><div id="dtcSummary" class="text-xs text-gray-300">Ingen information ännu.</div></div>
+</div>
+</div>
+
+<div id="tab-grid" class="hidden">
+<div class="bg-cardbg border border-cardborder rounded-2xl p-4 sm:p-6 shadow-xl">
+<h2 class="font-bold text-base text-white">BLM Fuel Trim Matrix</h2>
+<p class="text-xs text-gray-400 mt-1">Endast körande datapunkter används. BLM 128 är referenspunkten.</p>
+<div class="overflow-x-auto mt-5"><table id="blmTable" class="w-full text-center text-xs border-collapse"></table></div>
+</div>
+</div>
+
+<div id="tab-channels" class="hidden">
+<div class="bg-cardbg border border-cardborder rounded-2xl p-4 sm:p-6 shadow-xl">
+<div class="flex justify-between mb-4"><div><h2 class="font-bold text-base text-white">Tolkade ADX-kanaler</h2><p class="text-xs text-gray-400">Kanaler från ADX/XML eller identifierade loggkolumner.</p></div><span id="channelCount" class="text-xs text-gray-400">0</span></div>
+<div class="overflow-x-auto"><table class="w-full text-left text-xs"><thead class="bg-gray-900 text-gray-400"><tr><th class="p-3">Kanal</th><th class="p-3">Enhet</th><th class="p-3">Källa</th><th class="p-3">Status</th></tr></thead><tbody id="channelBody"></tbody></table></div>
+</div>
+</div>
+
+<div id="tab-report" class="hidden space-y-5">
+<div class="bg-cardbg border border-cardborder rounded-2xl p-5 shadow-xl">
+<div class="flex justify-between items-center mb-4"><div><h2 class="font-bold text-base">AI Tuning Expert & Rapport</h2><p class="text-xs text-gray-400">AI får ett sammanfattat analysunderlag, inte hela råfilen.</p></div><button onclick="runAI()" class="px-4 py-2 bg-brand-500 text-black rounded-lg text-xs font-bold"><i class="fa-solid fa-sparkles"></i> Kör AI</button></div>
+<div id="aiOutput" class="text-sm text-gray-300 leading-relaxed"><div class="text-gray-500">Ingen rapport ännu.</div></div>
+</div>
+<div class="bg-cardbg border border-cardborder rounded-2xl p-5"><h3 class="font-bold text-sm mb-3">Automatiska observationer</h3><div id="rules" class="space-y-2"></div></div>
+</div>
+
+</main>
+
+<footer class="border-t border-cardborder py-4 bg-cardbg text-center text-xs text-gray-500">
+ALDLdroid & TunerPro Web Diagnostic Studio © 2026
+</footer>
+
+<div id="apiModal" class="fixed inset-0 bg-black/80 z-50 hidden items-center justify-center p-4">
+<div class="bg-cardbg border border-cardborder rounded-2xl max-w-md w-full p-6 shadow-2xl">
+<div class="flex justify-between border-b border-cardborder pb-3 mb-4"><h3 class="font-bold">Gemini API-inställningar</h3><button onclick="toggleApiModal()">✕</button></div>
+<p class="text-xs text-gray-400 mb-4">Nyckeln sparas lokalt i webbläsaren. För en publik webbplats bör API-anrop flyttas till en server.</p>
+<input id="apiKey" type="password" placeholder="AIzaSy..." class="w-full bg-gray-900 border border-cardborder rounded-xl px-3 py-2 text-sm">
+<div class="flex justify-end gap-2 mt-4"><button onclick="clearApiKey()" class="px-3 py-2 text-xs text-gray-400">Rensa</button><button onclick="saveApiKey()" class="px-4 py-2 bg-brand-500 text-black rounded-lg text-xs font-bold">Spara</button></div>
+</div></div>
+
+<style>
+.metric{background:#111827;border:1px solid #1f293d;border-radius:.75rem;padding:1rem;display:flex;flex-direction:column;min-height:112px}
+.metric b{font-size:.7rem;text-transform:uppercase;letter-spacing:.05em;color:#9ca3af}
+.metric strong{font:700 1.5rem 'JetBrains Mono',monospace;margin:.45rem 0;color:#fff}
+.metric small{font-size:.65rem;color:#6b7280}
+.tab{padding:.65rem 1rem;font-size:.75rem;font-weight:600;color:#9ca3af;border-bottom:2px solid transparent;white-space:nowrap}
+.tab.active{color:#4ade80;border-color:#22c55e}
+</style>
+
+<script>
+const state={
+  adx:null,adxName:'',logName:'',headers:[],rows:[],rawCsv:'',
+  channels:{},metrics:null,chart:null,grid:null,engineRows:[],
+  dtcs:[],knockEvents:[],status:{}
+};
+
+const ALIASES={
+ time:['Time','Time_s','Timestamp'],
+ rpm:['Engine Speed','RPM','Engine_Speed'],
+ tps:['Throttle Position','TPS','Throttle'],
+ cts:['Coolant Temp','CTS','Coolant Temperature'],
+ mat:['Manifold Air Temperature (MAT)','MAT'],
+ battery:['Battery Voltage','Battery'],
+ fuelPump:['Voltage At Fuel Pump'],
+ vss:['Vehicle Speed'],
+ maf:['Mass Air Flow (MAF)','MAF'],
+ lv8:['Load Variable (LV8)','LV8'],
+ targetAfr:['Target AFR'],
+ o2:['Oxygen Sensor'],
+ o2Cross:['O2 Cross Counts'],
+ int:['Integrator (INT)','INT'],
+ blm:['Block Learn (BLM)','BLM'],
+ blmCell:['Block Learn Cell'],
+ bpw:['Injector Base Pulse Width'],
+ iac:['IAC Motor Position'],
+ spark:['Spark Adv Rel. to TDC','Spark Advance'],
+ refTime:['Time Between Ref Pulses'],
+ knockCount:['Knock Count','Knock'],
+ knockRetard:['Knock Retard'],
+ map:['Manifold Absolute Pressure (MAP)','MAP'],
+ engineStatus:['Engine Running Status'],
+ loopStatus:['Loop Status'],
+ richLean:['Rich/Lean'],
+ learnControl:['Learn Control'],
+ o2Status:['Oxygen Sensor Status'],
+ in8192:['In 8192 ALDL Mode']
+};
+
+function norm(s){return String(s??'').replace(/^\uFEFF/,'').trim().toLowerCase().replace(/[()]/g,'').replace(/[^a-z0-9åäö]+/g,'');}
+function findColumn(key){
+  const aliases=ALIASES[key]||[];
+  for(const a of aliases){const exact=state.headers.find(h=>norm(h)===norm(a));if(exact)return exact;}
+  for(const a of aliases){const n=norm(a);const loose=state.headers.find(h=>norm(h).includes(n)||n.includes(norm(h)));if(loose)return loose;}
+  return null;
+}
+function num(v){
+  if(typeof v==='number') return Number.isFinite(v)?v:NaN;
+  if(v==null||String(v).trim()==='') return NaN;
+  const s=String(v).trim().replace(',','.');
+  const x=parseFloat(s); return Number.isFinite(x)?x:NaN;
+}
+function parseCSVLine(line){
+  const out=[];let cur='',quote=false;
+  for(let i=0;i<line.length;i++){
+    const c=line[i];
+    if(c==='"'){
+      if(quote && line[i+1]==='"'){cur+='"';i++} else quote=!quote;
+    }else if(c===','&&!quote){out.push(cur);cur='';}else cur+=c;
+  }
+  out.push(cur);return out;
+}
+function parseCSV(text){
+  text=text.replace(/^\uFEFF/,'').replace(/\r\n/g,'\n').replace(/\r/g,'\n');
+  const lines=text.split('\n').filter(x=>x.trim()!=='');
+  if(!lines.length)return {headers:[],rows:[]};
+  let headers=parseCSVLine(lines[0]).map(x=>x.trim());
+  const rows=[];
+  for(let i=1;i<lines.length;i++){
+    const cells=parseCSVLine(lines[i]);
+    const row={};headers.forEach((h,j)=>row[h]=(cells[j]??'').trim());rows.push(row);
+  }
+  return {headers,rows};
+}
+function isRunning(row,c){
+  const s=String(c.engineStatus?row[c.engineStatus]:'').toLowerCase();
+  if(s.includes('not running')||s.includes('stopped'))return false;
+  const rpm=num(c.rpm?row[c.rpm]:NaN);
+  return Number.isFinite(rpm)&&rpm>0;
+}
+function getChannels(){
+  const c={};for(const k of Object.keys(ALIASES))c[k]=findColumn(k);return c;
+}
+function parseDtc(){
+  const list=[];
+  for(const h of state.headers){
+    const m=h.match(/^Code\s+(\d+)\s+-\s+(.+)/i);if(!m)continue;
+    let active=0;
+    for(const r of state.rows){
+      const v=String(r[h]??'').trim().toLowerCase();
+      if(v&&v!=='ok'&&v!=='0'&&v!=='inactive'&&v!=='false')active++;
+    }
+    list.push({code:m[1],name:m[2],active});
+  }
+  state.dtcs=list;
+}
+function analyze(){
+  if(!state.rows.length)return;
+  const c=getChannels();state.channels=c;
+  const running=state.rows.filter(r=>isRunning(r,c));state.engineRows=running;
+  const vals=(key,rows=running)=>rows.map(r=>num(c[key]?r[c[key]]:NaN)).filter(Number.isFinite);
+  const max=a=>a.length?Math.max(...a):NaN, avg=a=>a.length?a.reduce((x,y)=>x+y,0)/a.length:NaN;
+  const rpm=vals('rpm'),tps=vals('tps'),blm=vals('blm'),cts=vals('cts'),map=vals('map');
+  const times=state.rows.map(r=>num(c.time?r[c.time]:NaN)).filter(Number.isFinite);
+  const knockVals=vals('knockCount',state.rows);
+  let knockEvents=0,prev=0;
+  for(const v of knockVals){if(v>prev)knockEvents+=Math.max(1,Math.round(v-prev));prev=v}
+  const kr=vals('knockRetard',state.rows);
+  const meaningfulBlm=blm.filter(v=>v>0&&v<255);
+  state.knockEvents=knockEvents;
+  state.metrics={
+    rows:state.rows.length,runningRows:running.length,
+    duration:times.length?Math.max(...times)-Math.min(...times):0,
+    maxRpm:max(rpm),maxTps:max(tps),avgBlm:avg(meaningfulBlm),
+    maxCts:max(cts),maxMap:max(map),maxKnockRetard:max(kr)
+  };
+  parseDtc();buildGrid();renderMetrics();renderStatus();renderChannels();renderDtc();renderRules();updateChart();
+}
+function buildGrid(){
+  const c=state.channels,rpmBins=[800,1200,1600,2000,2800,3600,4400,5200],mapBins=[30,40,50,60,70,80,90,100];
+  const grid={};mapBins.forEach(m=>{grid[m]={};rpmBins.forEach(r=>grid[m][r]={sum:0,count:0})});
+  for(const row of state.engineRows){
+    const rpm=num(c.rpm?row[c.rpm]:NaN),map=num(c.map?row[c.map]:NaN),blm=num(c.blm?row[c.blm]:NaN);
+    if(!Number.isFinite(rpm)||!Number.isFinite(map)||!Number.isFinite(blm)||blm<=0||blm>255)continue;
+    const mb=mapBins.reduce((a,b)=>Math.abs(b-map)<Math.abs(a-map)?b:a);
+    const rb=rpmBins.reduce((a,b)=>Math.abs(b-rpm)<Math.abs(a-rpm)?b:a);
+    grid[mb][rb].sum+=blm;grid[mb][rb].count++;
+  }
+  state.grid={grid,rpmBins,mapBins};renderGrid();
+}
+function renderMetrics(){
+  const m=state.metrics;
+  document.getElementById('mRpm').textContent=Number.isFinite(m.maxRpm)?Math.round(m.maxRpm):'—';
+  document.getElementById('mTps').textContent=Number.isFinite(m.maxTps)?Math.round(m.maxTps):'—';
+  document.getElementById('mBlm').textContent=Number.isFinite(m.avgBlm)?Math.round(m.avgBlm):'—';
+  document.getElementById('mKnock').textContent=state.knockEvents;
+  document.getElementById('mCts').textContent=Number.isFinite(m.maxCts)?Math.round(m.maxCts):'—';
+  document.getElementById('mMap').textContent=Number.isFinite(m.maxMap)?Math.round(m.maxMap):'—';
+  document.getElementById('mKnock').className='text-2xl font-bold font-mono '+(state.knockEvents?'text-accentred':'text-white');
+}
+function renderStatus(){
+  const m=state.metrics,notice=document.getElementById('engineNotice');
+  notice.className='rounded-2xl p-4 border';
+  if(m.runningRows===0){
+    notice.classList.add('bg-amber-500/10','border-amber-500/30');
+    notice.innerHTML='<div class="flex gap-3"><i class="fa-solid fa-power-off text-amber-400 mt-1"></i><div><b class="text-amber-300">Kontakt med ECU hittad – motorn verkar inte ha varit igång.</b><p class="text-xs text-gray-300 mt-1">Loggen innehåller data, men inga datapunkter med körande motor hittades. Detta är inte nödvändigtvis ett fel. Starta motorn och logga igen för bränsletrim, MAP, RPM, knock och köranalys.</p></div></div>';
+  }else{
+    notice.classList.add('bg-brand-500/10','border-brand-500/30');
+    notice.innerHTML='<div class="flex gap-3"><i class="fa-solid fa-circle-check text-brand-400 mt-1"></i><div><b class="text-brand-300">Körande motordata hittad.</b><p class="text-xs text-gray-300 mt-1">'+m.runningRows.toLocaleString('sv-SE')+' av '+m.rows.toLocaleString('sv-SE')+' rader innehåller körande data.</p></div></div>';
+  }
+  document.getElementById('analysisTitle').textContent=m.runningRows?'Analys klar':'Logg läst – motorn var inte igång';
+  document.getElementById('analysisStatus').textContent=m.runningRows?`Hittade ${m.runningRows.toLocaleString('sv-SE')} körande datapunkter.`:`${m.rows.toLocaleString('sv-SE')} rader lästa. Ingen körande motor hittades.`;
+  document.getElementById('logSummary').innerHTML=`
+  <div><b>Rader:</b> ${m.rows.toLocaleString('sv-SE')}</div>
+  <div><b>Körande rader:</b> ${m.runningRows.toLocaleString('sv-SE')}</div>
+  <div><b>Loggtid:</b> ${Number.isFinite(m.duration)?m.duration.toFixed(1):'—'} s</div>
+  <div><b>Kolumner:</b> ${state.headers.length}</div>`;
+}
+function renderDtc(){
+  const active=state.dtcs.filter(x=>x.active>0),box=document.getElementById('dtcSummary');
+  if(!state.dtcs.length){box.textContent='Inga DTC-kolumner hittades i loggen.';return}
+  if(!active.length){box.innerHTML='<span class="text-brand-400"><i class="fa-solid fa-circle-check"></i> Inga aktiva DTC-värden hittades i de loggade Code-kanalerna.</span>';return}
+  box.innerHTML='<div class="text-amber-300 mb-2"><i class="fa-solid fa-triangle-exclamation"></i> Värden som inte är OK:</div>'+active.map(x=>`<div class="font-mono">Code ${x.code} – ${escapeHtml(x.name)} <span class="text-gray-500">(${x.active} rader)</span></div>`).join('');
+}
+function renderRules(){
+  const m=state.metrics,box=document.getElementById('rules');let html='';
+  if(m.runningRows===0){
+    html+=card('fa-power-off','text-amber-400','Ingen körande motor','Det går inte att bedöma bränsletrim, belastning eller knock från den här loggen eftersom RPM inte visar körande motor.');
+  }else{
+    if(Number.isFinite(m.avgBlm))html+=card(m.avgBlm>132?'fa-arrow-up':'fa-gauge','text-accentamber',`BLM medel ${Math.round(m.avgBlm)}`,`BLM avviker ${Math.round(((m.avgBlm-128)/128)*100)} % från referensen 128. Använd grid och körförhållanden för att se var avvikelsen finns.`);
+    if(state.knockEvents)html+=card('fa-triangle-exclamation','text-accentred',`${state.knockEvents} knackhändelser detekterade`,`Knock Count förändrades under loggen. Kontrollera även Knock Retard och exakt RPM/MAP innan någon ändring görs.`);
+    else html+=card('fa-circle-check','text-brand-400','Inga knackhändelser i räknaren','Ingen ökning av Knock Count hittades i loggen.');
+    html+=card('fa-chart-line','text-accentcyan','Kördata hittad',`Max ${Math.round(m.maxRpm)} RPM, ${Math.round(m.maxTps)} % TPS och ${Math.round(m.maxMap)} kPa MAP.`);
+  }
+  box.innerHTML=html;
+}
+function card(icon,color,title,text){return `<div class="p-3 rounded-xl bg-gray-900/50 border border-cardborder flex gap-3"><i class="fa-solid ${icon} ${color} mt-1"></i><div><div class="font-semibold text-gray-200 text-xs">${escapeHtml(title)}</div><div class="text-gray-400 text-[11px] mt-1">${escapeHtml(text)}</div></div></div>`}
+function renderGrid(){
+  const t=document.getElementById('blmTable');if(!state.grid){t.innerHTML='';return}
+  const {grid,rpmBins,mapBins}=state.grid;
+  let h='<thead><tr class="bg-gray-900 text-gray-400"><th class="p-2 border-r border-cardborder">MAP / RPM</th>'+rpmBins.map(r=>`<th class="p-2">${r}</th>`).join('')+'</tr></thead><tbody>';
+  for(const m of mapBins){h+=`<tr><td class="p-2 bg-gray-900/60 font-bold">${m}</td>`;for(const r of rpmBins){const c=grid[m][r];if(!c.count)h+='<td class="p-2 text-gray-600">—</td>';else{const v=Math.round(c.sum/c.count);let cl=v>132?'text-accentred bg-accentred/10':v<124?'text-accentcyan bg-accentcyan/10':'text-brand-400 bg-brand-500/10';h+=`<td class="p-2 font-mono ${cl}" title="${c.count} datapunkter">${v}</td>`}}h+='</tr>'}
+  t.innerHTML=h+'</tbody>';
+}
+function renderChannels(){
+  const c=state.channels;let count=0,h='';
+  for(const k of Object.keys(c)){if(!c[k])continue;count++;h+=`<tr class="border-b border-cardborder"><td class="p-3 font-mono">${escapeHtml(c[k])}</td><td class="p-3 text-gray-400">${unitFor(k)}</td><td class="p-3 text-gray-500">${escapeHtml(k)}</td><td class="p-3 text-brand-400">Hittad</td></tr>`}
+  document.getElementById('channelCount').textContent=count+' identifierade kanaler';
+  document.getElementById('channelBody').innerHTML=h||'<tr><td colspan="4" class="p-4 text-gray-500">Ladda en loggfil för att identifiera kanaler.</td></tr>';
+}
+function unitFor(k){return {rpm:'RPM',tps:'%',cts:'°C',mat:'°C',battery:'V',vss:'km/h',maf:'g/s',targetAfr:'AFR',blm:'count',int:'count',map:'kPa',spark:'°',knockRetard:'°'}[k]||''}
+function updateChart(){
+  if(!state.chart)return;
+  const c=state.channels,rows=state.rows;
+  const time=rows.map((r,i)=>{const x=num(c.time?r[c.time]:NaN);return Number.isFinite(x)?x:i});
+  const take=Math.min(2500,rows.length),step=Math.max(1,Math.ceil(rows.length/take));
+  const ix=[];for(let i=0;i<rows.length;i+=step)ix.push(i);
+  const get=(key,i)=>num(c[key]?rows[i][c[key]]:NaN);
+  state.chart.data.labels=ix.map(i=>time[i]);
+  state.chart.data.datasets[0].data=ix.map(i=>get('rpm',i));
+  state.chart.data.datasets[1].data=ix.map(i=>get('tps',i));
+  state.chart.data.datasets[2].data=ix.map(i=>get('map',i));
+  state.chart.data.datasets[3].data=ix.map(i=>get('knockCount',i));
+  state.chart.update();
+}
+function initChart(){
+  state.chart=new Chart(document.getElementById('mainChart'),{type:'line',data:{labels:[],datasets:[
+    {label:'RPM',data:[],borderColor:'#22c55e',borderWidth:2,pointRadius:0,yAxisID:'rpm',tension:.15},
+    {label:'TPS',data:[],borderColor:'#06b6d4',borderWidth:1.5,pointRadius:0,yAxisID:'pct',tension:.1},
+    {label:'MAP',data:[],borderColor:'#f59e0b',borderWidth:1.5,pointRadius:0,yAxisID:'map',tension:.1},
+    {label:'Knock',data:[],borderColor:'#ef4444',backgroundColor:'#ef4444',pointRadius:2,showLine:false,yAxisID:'knock'}
+  ]},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{legend:{display:true,labels:{color:'#9ca3af'}}},scales:{
+    x:{ticks:{color:'#6b7280',maxTicksLimit:12},grid:{color:'#1f293d'}},
+    rpm:{position:'left',ticks:{color:'#4ade80'},grid:{color:'#1f293d'},title:{display:true,text:'RPM',color:'#4ade80'}},
+    pct:{display:false,min:0,max:100},map:{display:false,min:0,max:110},
+    knock:{position:'right',ticks:{color:'#ef4444'},grid:{drawOnChartArea:false},title:{display:true,text:'Knock',color:'#ef4444'}}
+  }}});
+}
+function readAdxFile(e){const f=e.target.files[0];if(!f)return;f.text().then(t=>processAdx(t,f.name)).catch(err=>alert('Kunde inte läsa ADX-filen: '+err.message))}
+function processAdx(text,name){state.adx=text;state.adxName=name;document.getElementById('adxName').textContent=name;document.getElementById('adxSub').textContent='ADX/XML laddad';setBadge('adxBadge','Laddad','green');}
+function readLogFile(e){const f=e.target.files[0];if(!f)return;f.text().then(t=>processLog(t,f.name)).catch(err=>alert('Kunde inte läsa loggfilen: '+err.message))}
+function processLog(text,name){
+  try{
+    const p=parseCSV(text);
+    if(p.headers.length<2){alert('Kunde inte hitta en giltig CSV-header.');return}
+    state.rawCsv=text;state.headers=p.headers;state.rows=p.rows;state.logName=name;
+    document.getElementById('logName').textContent=name;
+    document.getElementById('logSub').textContent=`${p.rows.length.toLocaleString('sv-SE')} rader telemetridata`;
+    setBadge('logBadge','Laddad','cyan');
+    analyze();
+    switchTab('charts',document.querySelector('.tab'));
+  }catch(err){
+    console.error(err);
+    alert('Fel när loggfilen lästes: '+err.message);
+  }
+}
+function setBadge(id,text,color){
+  const e=document.getElementById(id);
+  e.textContent=text;
+  e.className=`mt-3 px-2.5 py-0.5 text-[10px] uppercase font-bold rounded-full border ${color==='green'?'bg-brand-500/20 text-brand-400 border-brand-500/40':'bg-accentcyan/20 text-accentcyan border-accentcyan/40'}`;
+}
+async function runAnalysis(){
+  if(state.rows && state.rows.length){
+    analyze();
+    switchTab('charts',document.querySelector('.tab'));
+    return;
+  }
+  const input=document.getElementById('logFile');
+  if(input && input.files && input.files.length){
+    try{
+      const file=input.files[0];
+      const text=await file.text();
+      processLog(text,file.name);
+      return;
+    }catch(err){
+      console.error(err);
+      alert('Kunde inte läsa loggfilen.');
+      return;
+    }
+  }
+  alert('Välj en loggfil först.');
+}
+function switchTab(name,btn){
+  ['charts','grid','channels','report'].forEach(x=>document.getElementById('tab-'+x).classList.toggle('hidden',x!==name));
+  document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));if(btn)btn.classList.add('active');
+}
+function escapeHtml(s){return String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
+function safeMarkdown(s){
+  let x=escapeHtml(s);
+  x=x.replace(/^### (.*)$/gm,'<h3 class="text-base font-bold text-white mt-5 mb-2">$1</h3>')
+   .replace(/^## (.*)$/gm,'<h2 class="text-lg font-bold text-white mt-6 mb-2">$1</h2>')
+   .replace(/^# (.*)$/gm,'<h1 class="text-xl font-bold text-white mt-6 mb-2">$1</h1>')
+   .replace(/\*\*(.*?)\*\*/g,'<strong>$1</strong>')
+   .replace(/\n/g,'<br>');
+  return x;
+}
+function buildAiSummary(){
+  const m=state.metrics,c=state.channels;
+  return {file:state.logName,adx:state.adxName||null,rows:m.rows,runningRows:m.runningRows,duration:m.duration,
+    channels:c,maxRPM:m.maxRpm,maxTPS:m.maxTps,avgBLM:m.avgBlm,maxCTS:m.maxCts,maxMAP:m.maxMap,
+    knockEvents:state.knockEvents,maxKnockRetard:m.maxKnockRetard,dtcs:state.dtcs.filter(x=>x.active).map(x=>`Code ${x.code} ${x.name}`),
+    engineStatus:c.engineStatus?sampleValues(c.engineStatus):[],loopStatus:c.loopStatus?sampleValues(c.loopStatus):[],
+    blmGrid:state.grid};
+}
+function sampleValues(col){return [...new Set(state.rows.map(r=>String(r[col]??'')).filter(Boolean))].slice(0,10)}
+async function runAI(){
+  switchTab('report',document.querySelectorAll('.tab')[3]);
+  const out=document.getElementById('aiOutput'),summary=buildAiSummary();
+  if(!state.rows.length){out.innerHTML='<span class="text-gray-500">Ladda en logg först.</span>';return}
+  const prompt=`Du är teknisk expert på GM OBD1/ALDL, ALDLdroid och TunerPro. Analysera endast uppgifterna nedan. Var försiktig: dra inte slutsatser som datan inte stöder. Om motorn inte varit igång ska det sägas tydligt. Ge observationer, möjliga orsaker och vad som bör verifieras. Ge inte exakta tuningändringar om rätt kalibreringskarta eller tillräckliga belastningsdata saknas. Svara på svenska med rubriker.\n\nDATA:\n${JSON.stringify(summary,null,2)}`;
+  if(!getApiKey()){out.innerHTML=localReport(summary);return}
+  out.innerHTML='<div class="text-brand-400 flex items-center gap-2"><i class="fa-solid fa-circle-notch fa-spin"></i> Gemini analyserar...</div>';
+  try{
+    const key=getApiKey();
+    const res=await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key='+encodeURIComponent(key),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({contents:[{parts:[{text:prompt}]}]})});
+    const j=await res.json();const text=j.candidates?.[0]?.content?.parts?.[0]?.text;
+    if(!text)throw new Error(j.error?.message||'Ingen AI-text');
+    out.innerHTML='<div class="p-2 mb-4 bg-brand-500/10 border border-brand-500/30 rounded-lg text-xs text-brand-400"><i class="fa-solid fa-sparkles"></i> Gemini-analys</div>'+safeMarkdown(text);
+  }catch(e){out.innerHTML='<div class="text-amber-300 mb-3">AI-anropet misslyckades. Lokal analys visas istället.</div>'+localReport(summary)}
+}
+function localReport(s){
+  if(!s.runningRows)return `<h2 class="text-lg font-bold text-white">Ingen körande motordata</h2><p class="mt-2">Loggen innehåller ${s.rows} rader, men Engine Speed/RPM visar ingen körande motor. Det betyder inte automatiskt att RetroScan eller loggen är fel. Starta motorn och gör en ny logg för motoranalys.</p>`;
+  let h=`<h2 class="text-lg font-bold text-white">Sammanfattning</h2><p class="mt-2">Loggen innehåller ${s.runningRows} körande datapunkter av ${s.rows}. Max ${Math.round(s.maxRPM)} RPM, ${Math.round(s.maxTPS)} % TPS och ${Math.round(s.maxMAP)} kPa MAP.</p>`;
+  if(Number.isFinite(s.avgBLM))h+=`<h3 class="text-base font-bold text-white mt-5">BLM</h3><p>Medel BLM är ${Math.round(s.avgBLM)}. 128 används som referenspunkt. Titta på BLM-gridens enskilda områden innan någon kalibreringsändring görs.</p>`;
+  h+=`<h3 class="text-base font-bold text-white mt-5">Knackning</h3><p>${s.knockEvents?s.knockEvents+' förändringar i Knock Count hittades. Kontrollera Knock Retard och belastningsförhållandet.':'Ingen ökning av Knock Count hittades.'}</p>`;
+  if(s.dtcs.length)h+=`<h3 class="text-base font-bold text-white mt-5">DTC</h3><p>${escapeHtml(s.dtcs.join(', '))}</p>`;
+  return h;
+}
+function getApiKey(){return localStorage.getItem('aldlai_gemini_key')||''}
+function toggleApiModal(){const m=document.getElementById('apiModal');m.classList.toggle('hidden');m.classList.toggle('flex');document.getElementById('apiKey').value=getApiKey()}
+function saveApiKey(){const k=document.getElementById('apiKey').value.trim();if(k)localStorage.setItem('aldlai_gemini_key',k);else localStorage.removeItem('aldlai_gemini_key');updateApiLabel();toggleApiModal()}
+function clearApiKey(){localStorage.removeItem('aldlai_gemini_key');document.getElementById('apiKey').value='';updateApiLabel()}
+function updateApiLabel(){document.getElementById('apiLabel').textContent=getApiKey()?' Gemini API ✓':' Gemini API'}
+function loadDemoData(){
+  const headers=['Time','Engine Speed','Throttle Position','Coolant Temp','Integrator (INT)','Block Learn (BLM)','Knock Count','Knock Retard','Manifold Absolute Pressure (MAP)','Engine Running Status','Loop Status','Code 12 - No Reference Pulses'];
+  const rows=[];let knock=0;
+  for(let i=0;i<250;i++){
+    const t=i*.2;let rpm=850+Math.sin(i/12)*250,tps=8+Math.sin(i/11)*10,map=35+Math.sin(i/12)*12,blm=128,cts=85;
+    if(i>70&&i<180){rpm=1800+(i-70)*12;tps=55+Math.sin(i/7)*12;map=65+Math.sin(i/9)*18;blm=137}
+    if(i>125&&i<140)knock++;
+    rows.push({'Time':t.toFixed(2),'Engine Speed':Math.round(rpm),'Throttle Position':Math.round(tps),'Coolant Temp':cts,'Integrator (INT)':128,'Block Learn (BLM)':blm,'Knock Count':knock,'Knock Retard':i>125&&i<140?3:0,'Manifold Absolute Pressure (MAP)':Math.round(map),'Engine Running Status':'Running','Loop Status':'Closed','Code 12 - No Reference Pulses':'OK'});
+  }
+  state.headers=headers;state.rows=rows;state.logName='DEMO_350_TPI.csv';state.adxName='GM_350_TPI_8D_Demo.ADX';
+  document.getElementById('logName').textContent=state.logName;setBadge('logBadge','Demodata','cyan');
+  document.getElementById('adxName').textContent=state.adxName;setBadge('adxBadge','Demodata','green');
+  analyze();switchTab('charts',document.querySelector('.tab'));
+}
+function setupDrops(){
+  [['dropAdx',processAdx],['dropLog',processLog]].forEach(([id,fn])=>{
+    const el=document.getElementById(id);
+    ['dragenter','dragover'].forEach(ev=>el.addEventListener(ev,e=>{e.preventDefault();el.classList.add('drop-active')}));
+    ['dragleave','drop'].forEach(ev=>el.addEventListener(ev,e=>{e.preventDefault();el.classList.remove('drop-active')}));
+    el.addEventListener('drop',e=>{const f=e.dataTransfer.files[0];if(!f)return;f.text().then(t=>fn(t,f.name)).catch(err=>alert('Kunde inte läsa filen: '+err.message))});
+  });
+}
+window.addEventListener('DOMContentLoaded',()=>{initChart();setupDrops();updateApiLabel()});
+</script>
+</body>
+</html>
+'''
+
+path = Path("/mnt/data/ALDLAI_Tuner_Studio_v2.html")
+path.write_text(html, encoding="utf-8")
+print(f"Klart: {path}")
+print(f"Storlek: {path.stat().st_size:,} bytes")
